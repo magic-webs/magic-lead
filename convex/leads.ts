@@ -1,5 +1,12 @@
-import { internalMutation, mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
+import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 
 export const getLeads = query({
   args: {
@@ -16,10 +23,16 @@ export const getLeads = query({
       ? await leadQuery.take(args.limit)
       : await leadQuery.collect();
 
+    const workspace = await ctx.db.get(args.workspaceId);
+
     return await Promise.all(
       leads.map(async (lead) => {
         const team = lead.teamId ? await ctx.db.get(lead.teamId) : null;
-        return { ...lead, team };
+        return {
+          ...lead,
+          team,
+          outgoingWebhookUrl: workspace?.triggerWebhookUrl ?? null,
+        };
       })
     );
   },
@@ -45,9 +58,92 @@ export const getAllLeads = query({
           ...lead,
           team,
           workspaceName: workspace?.name ?? "Unknown workspace",
+          outgoingWebhookUrl: workspace?.triggerWebhookUrl ?? null,
         };
       })
     );
+  },
+});
+
+/**
+ * Everything the re-trigger action needs in one read, since actions have no
+ * direct database access.
+ */
+export const getLeadWebhookContext = internalQuery({
+  args: { leadId: v.id("leads") },
+  handler: async (ctx, args) => {
+    const lead = await ctx.db.get(args.leadId);
+    if (!lead) return null;
+
+    const workspace = await ctx.db.get(lead.workspaceId);
+    const team = lead.teamId ? await ctx.db.get(lead.teamId) : null;
+
+    return {
+      payload: lead.payload,
+      workspaceName: workspace?.name ?? null,
+      triggerWebhookUrl: workspace?.triggerWebhookUrl ?? null,
+      teamName: team?.name ?? null,
+      teamMobileNumber: team?.mobileNumber ?? null,
+    };
+  },
+});
+
+/**
+ * Re-send an already-stored lead to the workspace's outgoing webhook, using
+ * the same body shape as the automatic assignment does.
+ *
+ * Unlike the fire-and-forget internal action used during ingestion, this
+ * reports failures back to the caller so the UI can show what went wrong.
+ */
+export const retriggerWebhook = action({
+  args: { leadId: v.id("leads") },
+  handler: async (ctx, args): Promise<{ status: number; url: string }> => {
+    const context = await ctx.runQuery(internal.leads.getLeadWebhookContext, {
+      leadId: args.leadId,
+    });
+
+    if (!context) {
+      throw new ConvexError("This lead no longer exists.");
+    }
+    if (!context.triggerWebhookUrl) {
+      throw new ConvexError(
+        "This workspace has no outgoing webhook configured. Add one in the workspace settings first."
+      );
+    }
+    if (!context.teamMobileNumber) {
+      throw new ConvexError(
+        "This lead is not assigned to a team, so there is no mobile number to send. Assign it to a team first."
+      );
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(context.triggerWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamMobileNumber: context.teamMobileNumber,
+          leadPayload: context.payload,
+        }),
+      });
+    } catch (error) {
+      throw new ConvexError(
+        `Could not reach ${context.triggerWebhookUrl}: ${
+          error instanceof Error ? error.message : "network error"
+        }`
+      );
+    }
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new ConvexError(
+        `The webhook responded with ${response.status} ${response.statusText}${
+          body ? `: ${body.slice(0, 200)}` : ""
+        }`
+      );
+    }
+
+    return { status: response.status, url: context.triggerWebhookUrl };
   },
 });
 
