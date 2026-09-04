@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
-  const [state, formAction, isPending] = useActionState(
-    async (prevState: any, formData: FormData) => {
-      return await loginAction(formData);
-    },
-    null
-  );
+  // On success loginAction redirects, so it only ever returns an error.
+  const [state, formAction, isPending] = useActionState<
+    { error: string } | null,
+    FormData
+  >(async (_prevState, formData) => {
+    return (await loginAction(formData)) ?? null;
+  }, null);
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-muted/40">

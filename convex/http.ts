@@ -29,7 +29,16 @@ http.route({
       }
 
       // 3. Get lead payload
-      const payload = await request.json().catch(() => ({}));
+      const rawPayload = await request.json().catch(() => ({}));
+      
+      const payload: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(rawPayload)) {
+        // Remove special characters from keys
+        const cleanKey = key.replace(/[^a-zA-Z0-9_]/g, '');
+        if (cleanKey) {
+          payload[cleanKey] = value;
+        }
+      }
 
       // 4. Assign lead (this is a mutation, we must run it via ctx.runMutation)
       const { assignedTeam } = await ctx.runMutation(internal.leads.assignLeadInternal, {
@@ -39,16 +48,17 @@ http.route({
 
       // 5. Trigger outgoing webhook if a team was assigned and a webhook is configured
       if (assignedTeam && workspace.triggerWebhookUrl) {
-        // Trigger it asynchronously, we don't need to block the response
-        ctx.runAction(internal.httpUtils.triggerWebhookAction, {
-          url: workspace.triggerWebhookUrl,
-          payload: {
-            teamMobileNumber: assignedTeam.mobileNumber,
-            leadPayload: payload,
-          },
-        }).catch((err) => {
+        try {
+          await ctx.runAction(internal.httpUtils.triggerWebhookAction, {
+            url: workspace.triggerWebhookUrl,
+            payload: {
+              teamMobileNumber: assignedTeam.mobileNumber,
+              leadPayload: payload,
+            },
+          });
+        } catch (err) {
           console.error("Failed to trigger webhook", err);
-        });
+        }
       }
 
       return new Response(JSON.stringify({ success: true }), {
@@ -59,6 +69,18 @@ http.route({
       console.error("Webhook processing error", error);
       return new Response("Internal Server Error", { status: 500 });
     }
+  }),
+});
+
+http.route({
+  pathPrefix: "/webhook/",
+  method: "GET",
+  // Health check, so you can confirm a webhook URL is live from a browser.
+  handler: httpAction(async () => {
+    return new Response("ok", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
   }),
 });
 
