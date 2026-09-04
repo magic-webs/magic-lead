@@ -52,9 +52,8 @@ const UNASSIGNED = "__unassigned__";
  * raw-payload dialog.
  */
 const LEAD_COLUMNS = [
-  { key: "name", label: "Name" },
-  { key: "city", label: "City" },
   { key: "full_name", label: "Full name" },
+  { key: "city", label: "City" },
   { key: "phone_number", label: "Phone number" },
   { key: "formName", label: "Form" },
 ] as const;
@@ -70,14 +69,42 @@ export type LeadRow = {
   workspaceName?: string;
 };
 
-/** Read one field off an arbitrary webhook payload as display text. */
-function readField(payload: unknown, key: string): string | null {
-  if (payload === null || typeof payload !== "object") return null;
+/**
+ * Providers that nest the submitted answers rather than putting them at the
+ * top level. Facebook lead-gen, for instance, sends the form fields under
+ * `fieldData` alongside its own `_id` / `__v` / `client` plumbing.
+ */
+const NESTED_CONTAINERS = ["fieldData", "data", "fields"];
 
-  const value = (payload as Record<string, unknown>)[key];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function toDisplay(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
 
-  return typeof value === "object" ? JSON.stringify(value) : String(value);
+/**
+ * Read one field for display, checking the top level first and then the
+ * known nested containers.
+ */
+function readField(payload: unknown, key: string): string | null {
+  if (!isRecord(payload)) return null;
+
+  const direct = toDisplay(payload[key]);
+  if (direct !== null) return direct;
+
+  for (const container of NESTED_CONTAINERS) {
+    const nested = payload[container];
+    if (isRecord(nested)) {
+      const value = toDisplay(nested[key]);
+      if (value !== null) return value;
+    }
+  }
+
+  return null;
 }
 
 function formatTimestamp(ts: number) {
@@ -254,7 +281,6 @@ function LeadTableRow({
                   <UserCog />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Assign to</DropdownMenuLabel>
                   <DropdownMenuRadioGroup
                     value={lead.teamId ?? UNASSIGNED}
                     onValueChange={(value) => {
@@ -267,6 +293,9 @@ function LeadTableRow({
                       });
                     }}
                   >
+                    {/* GroupLabel reads MenuGroupContext, so it has to sit
+                        inside the RadioGroup, not above it. */}
+                    <DropdownMenuLabel>Assign to</DropdownMenuLabel>
                     <DropdownMenuRadioItem value={UNASSIGNED}>
                       Unassigned
                     </DropdownMenuRadioItem>
