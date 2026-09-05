@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
@@ -11,8 +12,9 @@ import {
   LogOut,
   Plus,
   Users,
-  Zap,
 } from "lucide-react";
+
+import logoMark from "@/public/images/logo-mark.png";
 
 import { api } from "@/convex/_generated/api";
 import { logoutAction } from "@/app/login/actions";
@@ -66,8 +68,15 @@ export function AppSidebar() {
               render={<Link href="/" onClick={closeOnMobile} />}
               tooltip="Magic Lead"
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Zap className="size-4" />
+              {/* The mark is teal, so it sits on a dark tile rather than the
+                  brand-teal one it would disappear into. */}
+              <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-foreground">
+                <Image
+                  src={logoMark}
+                  alt=""
+                  aria-hidden
+                  className="size-6 object-contain"
+                />
               </div>
               <div className="grid flex-1 text-left leading-tight">
                 <span className="font-heading truncate font-semibold">

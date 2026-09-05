@@ -70,7 +70,11 @@ export function DashboardBreadcrumbs() {
           const isLast = index === crumbs.length - 1;
           return (
             <Fragment key={`${crumb.label}-${index}`}>
-              <BreadcrumbItem className="min-w-0">
+              {/* On phones only the current page is shown — the full trail
+                  would push the header into a second line. */}
+              <BreadcrumbItem
+                className={isLast ? "min-w-0" : "hidden min-w-0 sm:inline-flex"}
+              >
                 {crumb.href && !isLast ? (
                   <BreadcrumbLink render={<Link href={crumb.href} />}>
                     {crumb.label}
@@ -81,7 +85,9 @@ export function DashboardBreadcrumbs() {
                   </BreadcrumbPage>
                 )}
               </BreadcrumbItem>
-              {!isLast ? <BreadcrumbSeparator /> : null}
+              {!isLast ? (
+                <BreadcrumbSeparator className="hidden sm:block" />
+              ) : null}
             </Fragment>
           );
         })}

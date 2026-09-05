@@ -19,15 +19,21 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0 space-y-1">
-        <h1 className="font-heading truncate text-2xl font-semibold tracking-tight">
+        <h1 className="font-heading text-xl font-semibold tracking-tight sm:truncate sm:text-2xl">
           {title}
         </h1>
         {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm text-balance text-muted-foreground">
+            {description}
+          </p>
         ) : null}
       </div>
+      {/* Wraps rather than shrinking, so two or three buttons never overflow
+          a narrow screen. */}
       {actions ? (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
+          {actions}
+        </div>
       ) : null}
     </div>
   );

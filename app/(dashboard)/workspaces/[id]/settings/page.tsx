@@ -173,7 +173,7 @@ export default function WorkspaceSettingsPage({
               </pre>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed p-3">
+            <div className="flex flex-col gap-3 rounded-lg border border-dashed p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Rotate the token</p>
                 <p className="text-xs text-muted-foreground">
@@ -183,7 +183,7 @@ export default function WorkspaceSettingsPage({
               <Button
                 variant="outline"
                 onClick={() => setRegenerateOpen(true)}
-                className="shrink-0"
+                className="w-full sm:w-auto sm:shrink-0"
               >
                 <KeyRound />
                 Regenerate

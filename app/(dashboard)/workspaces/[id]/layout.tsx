@@ -52,11 +52,11 @@ export default function WorkspaceLayout({
           {workspace === undefined ? (
             <Skeleton className="h-8 w-56" />
           ) : (
-            <h1 className="font-heading truncate text-2xl font-semibold tracking-tight">
+            <h1 className="font-heading truncate text-xl font-semibold tracking-tight sm:text-2xl">
               {workspace.name}
             </h1>
           )}
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
+          <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
             {workspaceId}
           </p>
         </div>
