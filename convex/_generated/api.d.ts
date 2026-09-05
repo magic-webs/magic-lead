@@ -11,6 +11,7 @@
 import type * as http from "../http.js";
 import type * as httpUtils from "../httpUtils.js";
 import type * as leads from "../leads.js";
+import type * as matching from "../matching.js";
 import type * as stats from "../stats.js";
 import type * as teams from "../teams.js";
 import type * as workspaces from "../workspaces.js";
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   httpUtils: typeof httpUtils;
   leads: typeof leads;
+  matching: typeof matching;
   stats: typeof stats;
   teams: typeof teams;
   workspaces: typeof workspaces;

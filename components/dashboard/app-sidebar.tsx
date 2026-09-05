@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Plus,
+  Users,
   Zap,
 } from "lucide-react";
 
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/workspaces", label: "Workspaces", icon: Building2 },
   { href: "/leads", label: "All Leads", icon: Inbox },
+  { href: "/teams", label: "All Teams", icon: Users },
 ];
 
 export function AppSidebar() {

@@ -35,6 +35,8 @@ export function DashboardBreadcrumbs() {
 
   if (segments[0] === "leads") {
     crumbs.push({ label: "All Leads" });
+  } else if (segments[0] === "teams") {
+    crumbs.push({ label: "All Teams" });
   } else if (segments[0] === "workspaces") {
     const workspaceId = segments[1];
     crumbs.push({

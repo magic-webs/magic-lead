@@ -62,6 +62,38 @@ export const getTeams = query({
   },
 });
 
+/**
+ * Every team across every workspace, for the global /teams view. Ordered by
+ * workspace name, then by position in that workspace's rotation.
+ */
+export const getAllTeams = query({
+  args: {},
+  handler: async (ctx) => {
+    const teams = await ctx.db.query("teams").collect();
+    const leads = await ctx.db.query("leads").collect();
+    const workspaces = await ctx.db.query("workspaces").collect();
+
+    const workspacesById = new Map(workspaces.map((w) => [w._id, w]));
+
+    return teams
+      .map((team) => {
+        const workspace = workspacesById.get(team.workspaceId);
+        return {
+          ...team,
+          totalLeadCount: leads.filter((lead) => lead.teamId === team._id)
+            .length,
+          workspaceName: workspace?.name ?? "Unknown workspace",
+          workspaceKind: workspace?.kind ?? "standard",
+        };
+      })
+      .sort(
+        (a, b) =>
+          a.workspaceName.localeCompare(b.workspaceName) ||
+          a.orderIndex - b.orderIndex
+      );
+  },
+});
+
 export const createTeam = mutation({
   args: {
     workspaceId: v.id("workspaces"),
