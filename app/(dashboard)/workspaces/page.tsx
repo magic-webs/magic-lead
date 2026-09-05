@@ -263,6 +263,7 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceCardData }) {
           <Button
             variant="secondary"
             className="w-full"
+            nativeButton={false}
             render={<Link href={`/workspaces/${workspace._id}`} />}
           >
             Open workspace

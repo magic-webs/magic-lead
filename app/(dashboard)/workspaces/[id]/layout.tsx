@@ -42,6 +42,7 @@ export default function WorkspaceLayout({
           variant="ghost"
           size="sm"
           className="-ml-2 text-muted-foreground"
+          nativeButton={false}
           render={<Link href="/workspaces" />}
         >
           <ArrowLeft />

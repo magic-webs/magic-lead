@@ -26,10 +26,16 @@ export default function DashboardNotFound() {
       </EmptyHeader>
       <EmptyContent>
         <div className="flex gap-2">
-          <Button variant="outline" render={<Link href="/workspaces" />}>
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/workspaces" />}
+          >
             All workspaces
           </Button>
-          <Button render={<Link href="/" />}>Back to overview</Button>
+          <Button nativeButton={false} render={<Link href="/" />}>
+            Back to overview
+          </Button>
         </div>
       </EmptyContent>
     </Empty>

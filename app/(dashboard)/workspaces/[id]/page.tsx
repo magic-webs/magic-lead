@@ -150,6 +150,7 @@ export default function WorkspaceOverviewPage({
               <Button
                 variant="ghost"
                 size="sm"
+                nativeButton={false}
                 render={<Link href={`/workspaces/${workspaceId}/settings`} />}
               >
                 Edit rule
@@ -204,6 +205,7 @@ export default function WorkspaceOverviewPage({
             </CardDescription>
             <CardAction>
               <Button
+                nativeButton={false}
                 render={<Link href={`/workspaces/${workspaceId}/teams`} />}
               >
                 <Plus />
@@ -243,6 +245,7 @@ export default function WorkspaceOverviewPage({
             <Button
               variant="ghost"
               size="sm"
+              nativeButton={false}
               render={<Link href={`/workspaces/${workspaceId}/teams`} />}
             >
               Manage

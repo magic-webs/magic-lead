@@ -65,7 +65,11 @@ export default function OverviewPage() {
         description="Lead volume, routing health, and team distribution across every workspace."
         actions={
           <>
-            <Button variant="outline" render={<Link href="/leads" />}>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/leads" />}
+            >
               <Inbox />
               All leads
             </Button>
@@ -239,7 +243,12 @@ export default function OverviewPage() {
               <CardTitle>Recent activity</CardTitle>
               <CardDescription>The last leads to arrive</CardDescription>
               <CardAction>
-                <Button variant="ghost" size="sm" render={<Link href="/leads" />}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  nativeButton={false}
+                  render={<Link href="/leads" />}
+                >
                   View all
                   <ArrowRight />
                 </Button>
