@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { sanitizePayloadKeys } from "./matching";
 
 const http = httpRouter();
 
@@ -37,17 +38,15 @@ http.route({
         );
       }
 
-      // 3. Get lead payload
+      // 3. Get lead payload, cleaning keys at every level. Facebook lead-gen
+      //    nests its answers under `fieldData` using the question text as the
+      //    key, so those routinely contain "?" and spaces.
       const rawPayload = await request.json().catch(() => ({}));
-      
-      const payload: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(rawPayload)) {
-        // Remove special characters from keys
-        const cleanKey = key.replace(/[^a-zA-Z0-9_]/g, '');
-        if (cleanKey) {
-          payload[cleanKey] = value;
-        }
-      }
+
+      const payload = sanitizePayloadKeys(rawPayload) as Record<
+        string,
+        unknown
+      >;
 
       // 4. Assign lead (this is a mutation, we must run it via ctx.runMutation)
       //    A channel workspace may claim it, in which case `assignedWorkspace`
