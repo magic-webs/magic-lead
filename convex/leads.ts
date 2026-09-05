@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import { matchesRule } from "./matching";
 
 export const getLeads = query({
   args: {
@@ -28,10 +29,14 @@ export const getLeads = query({
     return await Promise.all(
       leads.map(async (lead) => {
         const team = lead.teamId ? await ctx.db.get(lead.teamId) : null;
+        const source = lead.sourceWorkspaceId
+          ? await ctx.db.get(lead.sourceWorkspaceId)
+          : null;
         return {
           ...lead,
           team,
           outgoingWebhookUrl: workspace?.triggerWebhookUrl ?? null,
+          sourceWorkspaceName: source?.name ?? null,
         };
       })
     );
@@ -54,11 +59,15 @@ export const getAllLeads = query({
       leads.map(async (lead) => {
         const team = lead.teamId ? await ctx.db.get(lead.teamId) : null;
         const workspace = await ctx.db.get(lead.workspaceId);
+        const source = lead.sourceWorkspaceId
+          ? await ctx.db.get(lead.sourceWorkspaceId)
+          : null;
         return {
           ...lead,
           team,
           workspaceName: workspace?.name ?? "Unknown workspace",
           outgoingWebhookUrl: workspace?.triggerWebhookUrl ?? null,
+          sourceWorkspaceName: source?.name ?? null,
         };
       })
     );
@@ -186,27 +195,54 @@ export const assignLeadInternal = internalMutation({
     payload: v.any(),
   },
   handler: async (ctx, args) => {
-    // 1. Get workspace to check lastAssignedOrderIndex
-    const workspace = await ctx.db.get(args.workspaceId);
-    if (!workspace) {
+    const originWorkspace = await ctx.db.get(args.workspaceId);
+    if (!originWorkspace) {
       throw new Error("Workspace not found");
     }
 
-    // 2. Get all teams for the workspace, ordered by orderIndex
+    // 0. Before the normal rotation, let a channel workspace claim the lead.
+    //    Channel workspaces watch every standard workspace's incoming leads
+    //    and take the ones matching their rule. If several match, the
+    //    oldest channel workspace wins, so the outcome is deterministic.
+    const channelWorkspaces = await ctx.db
+      .query("workspaces")
+      .withIndex("by_kind", (q) => q.eq("kind", "channel"))
+      .collect();
+
+    const claimingWorkspace =
+      channelWorkspaces
+        .sort((a, b) => a._creationTime - b._creationTime)
+        .find(
+          (candidate) =>
+            candidate._id !== args.workspaceId &&
+            matchesRule(
+              args.payload,
+              candidate.matchField,
+              candidate.matchValues
+            )
+        ) ?? null;
+
+    // 1. Route into the claiming channel if there is one, otherwise stay put.
+    const workspace = claimingWorkspace ?? originWorkspace;
+    const workspaceId = workspace._id;
+    const sourceWorkspaceId = claimingWorkspace ? args.workspaceId : undefined;
+
+    // 2. Get all teams for the target workspace, ordered by orderIndex
     const teams = await ctx.db
       .query("teams")
       .withIndex("by_workspace_and_order", (q) =>
-        q.eq("workspaceId", args.workspaceId)
+        q.eq("workspaceId", workspaceId)
       )
       .collect();
 
     if (teams.length === 0) {
       // If no teams, just save the lead without a teamId
       const leadId = await ctx.db.insert("leads", {
-        workspaceId: args.workspaceId,
+        workspaceId,
         payload: args.payload,
+        sourceWorkspaceId,
       });
-      return { leadId, assignedTeam: null };
+      return { leadId, assignedTeam: null, workspace };
     }
 
     // 3. Check if ALL teams are full
@@ -244,20 +280,23 @@ export const assignLeadInternal = internalMutation({
 
     // 5. Assign lead and increment the selected team's count
     const leadId = await ctx.db.insert("leads", {
-      workspaceId: args.workspaceId,
+      workspaceId,
       teamId: teamToAssign._id,
       payload: args.payload,
+      sourceWorkspaceId,
     });
 
     await ctx.db.patch(teamToAssign._id, {
       currentAssignedCount: teamToAssign.currentAssignedCount + 1,
     });
 
-    // 6. Update workspace's lastAssignedOrderIndex
-    await ctx.db.patch(args.workspaceId, {
+    // 6. Advance the rotation cursor on whichever workspace took the lead
+    await ctx.db.patch(workspaceId, {
       lastAssignedOrderIndex: teamToAssign.orderIndex,
     });
 
-    return { leadId, assignedTeam: teamToAssign };
+    // The caller fires the outgoing webhook of the workspace that actually
+    // took the lead, not necessarily the one the request arrived at.
+    return { leadId, assignedTeam: teamToAssign, workspace };
   },
 });

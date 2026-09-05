@@ -137,6 +137,63 @@ export default function WorkspaceOverviewPage({
         </Card>
       </div>
 
+      {stats.kind === "channel" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Routing rule</CardTitle>
+            <CardDescription>
+              This workspace has no incoming webhook. It claims matching leads
+              from every standard workspace and distributes them across its own
+              teams.
+            </CardDescription>
+            <CardAction>
+              <Button
+                variant="ghost"
+                size="sm"
+                render={<Link href={`/workspaces/${workspaceId}/settings`} />}
+              >
+                Edit rule
+                <ArrowRight />
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm">
+              Claim a lead when{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                {stats.matchField ?? "—"}
+              </code>{" "}
+              is one of:
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {stats.matchValues.length === 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  No values configured — this channel claims nothing.
+                </span>
+              ) : (
+                stats.matchValues.map((value) => (
+                  <Badge key={value} variant="secondary">
+                    {value}
+                  </Badge>
+                ))
+              )}
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="mb-3 text-sm font-medium">Claimed from</p>
+              <DistributionList
+                emptyLabel="No leads have matched this rule yet."
+                items={stats.leadsBySource.map((source) => ({
+                  id: source.workspaceId,
+                  label: source.workspaceName,
+                  count: source.count,
+                }))}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {stats.totalTeams === 0 ? (
         <Card>
           <CardHeader>

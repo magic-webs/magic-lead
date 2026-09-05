@@ -44,18 +44,64 @@ export const getWorkspace = query({
   },
 });
 
+/** Trim, drop blanks, and de-duplicate the accepted values of a channel rule. */
+function cleanMatchValues(values: string[]): string[] {
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+
+  for (const raw of values) {
+    const value = raw.trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(value);
+  }
+
+  return cleaned;
+}
+
 export const createWorkspace = mutation({
-  args: { name: v.string() },
+  args: {
+    name: v.string(),
+    kind: v.optional(v.union(v.literal("standard"), v.literal("channel"))),
+    matchField: v.optional(v.string()),
+    matchValues: v.optional(v.array(v.string())),
+  },
   handler: async (ctx, args) => {
     const name = args.name.trim();
     if (!name) {
       throw new Error("Workspace name is required");
     }
 
-    const webhookToken = crypto.randomUUID();
+    const kind = args.kind ?? "standard";
+
+    if (kind === "channel") {
+      const matchField = args.matchField?.trim() ?? "";
+      const matchValues = cleanMatchValues(args.matchValues ?? []);
+
+      if (!matchField) {
+        throw new Error("A channel workspace needs a field to match on");
+      }
+      if (matchValues.length === 0) {
+        throw new Error("A channel workspace needs at least one match value");
+      }
+
+      return await ctx.db.insert("workspaces", {
+        name,
+        // Channel workspaces never accept incoming posts, but the column is
+        // required, so give them a token that simply is not exposed anywhere.
+        webhookToken: crypto.randomUUID(),
+        kind,
+        matchField,
+        matchValues,
+      });
+    }
+
     return await ctx.db.insert("workspaces", {
       name,
-      webhookToken,
+      webhookToken: crypto.randomUUID(),
+      kind,
     });
   },
 });
@@ -69,6 +115,8 @@ export const updateWorkspace = mutation({
     id: v.id("workspaces"),
     name: v.optional(v.string()),
     triggerWebhookUrl: v.optional(v.string()),
+    matchField: v.optional(v.string()),
+    matchValues: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const workspace = await ctx.db.get(args.id);
@@ -79,6 +127,8 @@ export const updateWorkspace = mutation({
     const patch: {
       name?: string;
       triggerWebhookUrl?: string | undefined;
+      matchField?: string;
+      matchValues?: string[];
     } = {};
 
     if (args.name !== undefined) {
@@ -93,6 +143,32 @@ export const updateWorkspace = mutation({
       const url = args.triggerWebhookUrl.trim();
       // An empty string clears the webhook rather than storing "".
       patch.triggerWebhookUrl = url === "" ? undefined : url;
+    }
+
+    const editingRule =
+      args.matchField !== undefined || args.matchValues !== undefined;
+
+    if (editingRule) {
+      if (workspace.kind !== "channel") {
+        throw new Error(
+          "Only channel workspaces have a routing rule. The type is fixed when the workspace is created."
+        );
+      }
+
+      const matchField = (args.matchField ?? workspace.matchField ?? "").trim();
+      const matchValues = cleanMatchValues(
+        args.matchValues ?? workspace.matchValues ?? []
+      );
+
+      if (!matchField) {
+        throw new Error("A channel workspace needs a field to match on");
+      }
+      if (matchValues.length === 0) {
+        throw new Error("A channel workspace needs at least one match value");
+      }
+
+      patch.matchField = matchField;
+      patch.matchValues = matchValues;
     }
 
     await ctx.db.patch(args.id, patch);
@@ -150,6 +226,16 @@ export const deleteWorkspace = mutation({
       .collect();
     for (const team of teams) {
       await ctx.db.delete(team._id);
+    }
+
+    // Leads a channel workspace claimed from this one live elsewhere, but
+    // still point back at it. Clear the reference rather than leaving an id
+    // that no longer resolves.
+    const claimedElsewhere = await ctx.db.query("leads").collect();
+    for (const lead of claimedElsewhere) {
+      if (lead.sourceWorkspaceId === args.id) {
+        await ctx.db.patch(lead._id, { sourceWorkspaceId: undefined });
+      }
     }
 
     await ctx.db.delete(args.id);

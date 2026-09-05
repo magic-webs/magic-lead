@@ -3,15 +3,17 @@
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
-import { KeyRound, Pencil, Trash2 } from "lucide-react";
+import { KeyRound, Pencil, Share2, Trash2 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { ChannelRuleForm } from "@/components/dashboard/channel-rule-form";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { CopyButton } from "@/components/dashboard/copy-button";
 import { OutgoingWebhookForm } from "@/components/dashboard/outgoing-webhook-form";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkspaceFormDialog } from "@/components/dashboard/workspace-form-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -81,12 +83,19 @@ export default function WorkspaceSettingsPage({
 
   const incomingWebhookUrl = buildIncomingWebhookUrl(workspace.webhookToken);
   const storedWebhook = workspace.triggerWebhookUrl ?? "";
+  const isChannel = workspace.kind === "channel";
+  const storedMatchField = workspace.matchField ?? "";
+  const storedMatchValues = workspace.matchValues ?? [];
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Settings"
-        description="Rename the workspace, wire up its webhooks, or remove it entirely."
+        description={
+          isChannel
+            ? "Adjust which leads this channel claims, wire up its outgoing webhook, or remove it."
+            : "Rename the workspace, wire up its webhooks, or remove it entirely."
+        }
       />
 
       <Card>
@@ -102,60 +111,87 @@ export default function WorkspaceSettingsPage({
             </Button>
           </CardAction>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex items-center gap-2">
           <p className="font-heading text-lg font-medium">{workspace.name}</p>
+          {isChannel ? (
+            <Badge variant="secondary">
+              <Share2 />
+              Channel partner
+            </Badge>
+          ) : null}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Incoming webhook</CardTitle>
-          <CardDescription>
-            POST a JSON body to this URL to create a lead in this workspace.
-            Keys are stripped of non-alphanumeric characters before they are
-            stored.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="incoming-webhook">Webhook URL</Label>
-            <div className="flex gap-2">
-              <Input
-                id="incoming-webhook"
-                readOnly
-                value={incomingWebhookUrl}
-                placeholder="NEXT_PUBLIC_CONVEX_URL is not set"
-                className="bg-muted font-mono text-sm"
-              />
-              <CopyButton value={incomingWebhookUrl} />
+      {isChannel ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Routing rule</CardTitle>
+            <CardDescription>
+              This workspace has no incoming webhook. It watches the leads
+              arriving at every standard workspace and claims the ones matching
+              this rule, then distributes them across its own teams.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChannelRuleForm
+              key={`${storedMatchField}|${storedMatchValues.join(",")}`}
+              workspaceId={workspaceId}
+              storedField={storedMatchField}
+              storedValues={storedMatchValues}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Incoming webhook</CardTitle>
+            <CardDescription>
+              POST a JSON body to this URL to create a lead in this workspace.
+              Keys are stripped of non-alphanumeric characters before they are
+              stored.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="incoming-webhook">Webhook URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="incoming-webhook"
+                  readOnly
+                  value={incomingWebhookUrl}
+                  placeholder="NEXT_PUBLIC_CONVEX_URL is not set"
+                  className="bg-muted font-mono text-sm"
+                />
+                <CopyButton value={incomingWebhookUrl} />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <Label>Example request body</Label>
-            <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs text-muted-foreground">
-              {EXAMPLE_PAYLOAD}
-            </pre>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed p-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Rotate the token</p>
-              <p className="text-xs text-muted-foreground">
-                Issues a new URL and immediately invalidates the current one.
-              </p>
+            <div className="space-y-1.5">
+              <Label>Example request body</Label>
+              <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs text-muted-foreground">
+                {EXAMPLE_PAYLOAD}
+              </pre>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setRegenerateOpen(true)}
-              className="shrink-0"
-            >
-              <KeyRound />
-              Regenerate
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Rotate the token</p>
+                <p className="text-xs text-muted-foreground">
+                  Issues a new URL and immediately invalidates the current one.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setRegenerateOpen(true)}
+                className="shrink-0"
+              >
+                <KeyRound />
+                Regenerate
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

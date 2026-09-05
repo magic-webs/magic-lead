@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   Settings,
+  Share2,
   Trash2,
   Users,
   Webhook,
@@ -56,6 +57,9 @@ type WorkspaceCardData = {
   leadCount: number;
   lastLeadAt: number | null;
   triggerWebhookUrl?: string;
+  kind?: "standard" | "channel";
+  matchField?: string;
+  matchValues?: string[];
 };
 
 function formatLastLead(ts: number | null) {
@@ -145,6 +149,7 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceCardData }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const needsTeams = workspace.teamCount === 0;
+  const isChannel = workspace.kind === "channel";
 
   return (
     <>
@@ -159,6 +164,13 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceCardData }) {
             </Link>
           </CardTitle>
           <CardDescription>
+            {isChannel && workspace.matchField ? (
+              <span className="block">
+                Claims leads where{" "}
+                <code className="font-mono">{workspace.matchField}</code> is{" "}
+                {(workspace.matchValues ?? []).join(" or ")}
+              </span>
+            ) : null}
             {formatLastLead(workspace.lastLeadAt)}
           </CardDescription>
           <CardAction>
@@ -223,6 +235,12 @@ function WorkspaceCard({ workspace }: { workspace: WorkspaceCardData }) {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-1.5">
+            {isChannel ? (
+              <Badge variant="outline">
+                <Share2 />
+                Channel partner
+              </Badge>
+            ) : null}
             {needsTeams ? (
               <Badge variant="destructive">Needs teams</Badge>
             ) : (

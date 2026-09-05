@@ -28,6 +28,15 @@ http.route({
         return new Response("Workspace not found", { status: 404 });
       }
 
+      // Channel workspaces have no incoming webhook of their own — they only
+      // receive leads claimed from other workspaces.
+      if (workspace.kind === "channel") {
+        return new Response(
+          "This is a channel workspace and does not accept incoming leads",
+          { status: 400 }
+        );
+      }
+
       // 3. Get lead payload
       const rawPayload = await request.json().catch(() => ({}));
       
@@ -41,16 +50,19 @@ http.route({
       }
 
       // 4. Assign lead (this is a mutation, we must run it via ctx.runMutation)
-      const { assignedTeam } = await ctx.runMutation(internal.leads.assignLeadInternal, {
-        workspaceId: workspace._id,
-        payload,
-      });
+      //    A channel workspace may claim it, in which case `assignedWorkspace`
+      //    is the channel rather than the one the request arrived at.
+      const { assignedTeam, workspace: assignedWorkspace } =
+        await ctx.runMutation(internal.leads.assignLeadInternal, {
+          workspaceId: workspace._id,
+          payload,
+        });
 
-      // 5. Trigger outgoing webhook if a team was assigned and a webhook is configured
-      if (assignedTeam && workspace.triggerWebhookUrl) {
+      // 5. Trigger the outgoing webhook of whichever workspace took the lead
+      if (assignedTeam && assignedWorkspace.triggerWebhookUrl) {
         try {
           await ctx.runAction(internal.httpUtils.triggerWebhookAction, {
-            url: workspace.triggerWebhookUrl,
+            url: assignedWorkspace.triggerWebhookUrl,
             payload: {
               teamMobileNumber: assignedTeam.mobileNumber,
               leadPayload: payload,

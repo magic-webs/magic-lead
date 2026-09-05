@@ -7,6 +7,9 @@ import { Braces, Inbox, Trash2, UserCog } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+// Same lookup the channel routing rules use, so what you see in a column is
+// exactly what a rule would match on.
+import { readPayloadField } from "@/convex/matching";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,46 +69,10 @@ export type LeadRow = {
   payload: unknown;
   team: { _id: Id<"teams">; name: string } | null;
   outgoingWebhookUrl: string | null;
+  /** Set when a channel workspace claimed this lead from somewhere else. */
+  sourceWorkspaceName: string | null;
   workspaceName?: string;
 };
-
-/**
- * Providers that nest the submitted answers rather than putting them at the
- * top level. Facebook lead-gen, for instance, sends the form fields under
- * `fieldData` alongside its own `_id` / `__v` / `client` plumbing.
- */
-const NESTED_CONTAINERS = ["fieldData", "data", "fields"];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function toDisplay(value: unknown): string | null {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-
-/**
- * Read one field for display, checking the top level first and then the
- * known nested containers.
- */
-function readField(payload: unknown, key: string): string | null {
-  if (!isRecord(payload)) return null;
-
-  const direct = toDisplay(payload[key]);
-  if (direct !== null) return direct;
-
-  for (const container of NESTED_CONTAINERS) {
-    const nested = payload[container];
-    if (isRecord(nested)) {
-      const value = toDisplay(nested[key]);
-      if (value !== null) return value;
-    }
-  }
-
-  return null;
-}
 
 function formatTimestamp(ts: number) {
   return new Date(ts).toLocaleString(undefined, {
@@ -223,7 +190,7 @@ function LeadTableRow({
         ) : null}
 
         {LEAD_COLUMNS.map((column) => {
-          const value = readField(lead.payload, column.key);
+          const value = readPayloadField(lead.payload, column.key);
           return (
             <TableCell
               key={column.key}
@@ -239,13 +206,20 @@ function LeadTableRow({
         })}
 
         <TableCell>
-          {lead.team ? (
-            <Badge variant="secondary">{lead.team.name}</Badge>
-          ) : (
-            <Badge variant="outline" className="text-muted-foreground">
-              Unassigned
-            </Badge>
-          )}
+          <div className="flex flex-col items-start gap-1">
+            {lead.team ? (
+              <Badge variant="secondary">{lead.team.name}</Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">
+                Unassigned
+              </Badge>
+            )}
+            {lead.sourceWorkspaceName ? (
+              <span className="text-xs whitespace-nowrap text-muted-foreground">
+                claimed from {lead.sourceWorkspaceName}
+              </span>
+            ) : null}
+          </div>
         </TableCell>
 
         <TableCell className="pr-4 text-right">

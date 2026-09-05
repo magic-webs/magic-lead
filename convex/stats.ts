@@ -1,6 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -166,6 +166,8 @@ export const getDashboardStats = query({
       ).length,
       workspacesWithoutWebhook: workspaces.filter((w) => !w.triggerWebhookUrl)
         .length,
+      channelWorkspaces: workspaces.filter((w) => w.kind === "channel").length,
+      claimedLeads: leads.filter((l) => l.sourceWorkspaceId).length,
       leadsByDay: buildDailySeries(leads, 14, now),
       leadsByWorkspace,
       topTeams,
@@ -248,7 +250,32 @@ export const getWorkspaceStats = query({
       0
     );
 
+    // For a channel workspace, where its claimed leads originally arrived.
+    const sourceCounts = new Map<string, number>();
+    for (const lead of leads) {
+      if (!lead.sourceWorkspaceId) continue;
+      const key = lead.sourceWorkspaceId as string;
+      sourceCounts.set(key, (sourceCounts.get(key) ?? 0) + 1);
+    }
+
+    const leadsBySource = await Promise.all(
+      [...sourceCounts.entries()].map(async ([workspaceId, count]) => {
+        const source = await ctx.db.get(workspaceId as Id<"workspaces">);
+        return {
+          workspaceId,
+          workspaceName: source?.name ?? "Deleted workspace",
+          count,
+        };
+      })
+    );
+    leadsBySource.sort((a, b) => b.count - a.count);
+
     return {
+      kind: workspace.kind ?? "standard",
+      matchField: workspace.matchField ?? null,
+      matchValues: workspace.matchValues ?? [],
+      claimedLeads: leads.filter((l) => l.sourceWorkspaceId).length,
+      leadsBySource,
       totalLeads: leads.length,
       totalTeams: teams.length,
       assignedLeads,
